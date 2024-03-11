@@ -9,7 +9,7 @@ M.opts = {
 	picker = "quickfix",
 	qf_window_size = 5,
 	qf_window_pos = "bottom",
-	skip_picker_for_single_result = false,
+	skip_picker_for_single_result = true,
 	db_build_cmd_args = { "-bqkv" },
 	statusline_indicator = nil,
 	project_rooter = {
@@ -54,8 +54,19 @@ find : Query for a pattern            (Usage: find a|c|d|e|f|g|i|s|t name)
        s: Find this C symbol
        t: Find this text string
 build: Build cscope database          (Usage: build)
+add  : add cscope database            (Usage: add /path/to/your/cscope.database)
+show : Currently only show fiel name  (Usage: show)
 help : Show this message              (Usage: help)
 ]])
+end
+
+local cscope_add = function(db_file)
+	log.warn("Path -> " .. db_file)
+	M.opts.db_file = db_file
+end
+
+local cscope_show = function()
+	print("Database: ", M.opts.db_file)
 end
 
 local cscope_push_tagstack = function()
@@ -147,8 +158,11 @@ local cscope_find_helper = function(op_n, op_s, symbol, hide_log)
 		return RC.DB_NOT_FOUND
 	end
 
-	cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol
+	-- redirect error message to null
+	cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol .. " 2> /dev/null"
+	-- cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol
 
+	-- print(cmd)
 	local file = assert(io.popen(cmd, "r"))
 	file:flush()
 	local output = file:read("*all")
@@ -309,13 +323,22 @@ local cscope = function(args)
 		cscope_build()
 	elseif cmd:sub(1, 1) == "h" then
 		cscope_help()
+	elseif cmd:sub(1, 1) == "s" then
+		cscope_show()
+	elseif cmd:sub(1, 1) == "a" then
+		if args_num < 2 then
+			log.warn("add command expects atleast 2 arguments")
+			return
+		end
+		local db_file = args[2]
+		cscope_add(db_file)
 	else
 		log.warn("command '" .. cmd .. "' is invalid")
 	end
 end
 
 local cscope_cmd_comp = function(_, line)
-	local cmds = { "find", "build", "help" }
+	local cmds = { "find", "build", "help", "add", "show"}
 	local l = vim.split(line, "%s+")
 	local n = #l - 2
 
