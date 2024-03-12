@@ -7,7 +7,7 @@ M.opts = {
 	db_file = "./cscope.out",
 	exec = "cscope",
 	picker = "quickfix",
-	qf_window_size = 5,
+	qf_window_size = 10,
 	qf_window_pos = "bottom",
 	skip_picker_for_single_result = true,
 	db_build_cmd_args = { "-bqkv" },
@@ -37,6 +37,9 @@ for k, v in pairs(M.op_s_n) do
 	M.op_n_s[v] = k
 end
 
+-- connected db_file
+M.data_db = {}
+
 local cscope_picker = nil
 local project_root = nil
 
@@ -56,17 +59,35 @@ find : Query for a pattern            (Usage: find a|c|d|e|f|g|i|s|t name)
 build: Build cscope database          (Usage: build)
 add  : add cscope database            (Usage: add /path/to/your/cscope.database)
 show : Currently only show fiel name  (Usage: show)
+reset: Reset connected database       (Usage: reset)
 help : Show this message              (Usage: help)
 ]])
 end
 
 local cscope_add = function(db_file)
-	log.warn("Path -> " .. db_file)
-	M.opts.db_file = db_file
+	if vim.loop.fs_stat(db_file) == nil then
+		log.warn("db file not found [" .. db_file .. "]. Create using :Cs build", hide_log)
+		return
+	end
+
+	table.insert(M.data_db, db_file)
+	log.info("Add database: " .. db_file)
+
+end
+
+local cscope_reset = function()
+	print("Cscope: reset databse")
+	M.data_db = {}
 end
 
 local cscope_show = function()
 	print("Database: ", M.opts.db_file)
+	if table.getn(M.data_db) > 1 then
+		print("Idx, Database")
+	end
+	for k,v in pairs(M.data_db) do
+		print(k,v)
+	end
 end
 
 local cscope_push_tagstack = function()
@@ -140,6 +161,9 @@ local cscope_find_helper = function(op_n, op_s, symbol, hide_log)
 	local db_file = vim.g.cscope_maps_db_file or M.opts.db_file
 	local cmd = M.opts.exec
 
+	local file = nil
+	local output = ""
+
 	if cmd == "cscope" then
 		cmd = cmd .. " " .. "-f " .. db_file
 	elseif cmd == "gtags-cscope" then
@@ -153,20 +177,30 @@ local cscope_find_helper = function(op_n, op_s, symbol, hide_log)
 		return RC.INVALID_EXEC
 	end
 
-	if vim.loop.fs_stat(db_file) == nil then
-		log.warn("db file not found [" .. db_file .. "]. Create using :Cs build", hide_log)
-		return RC.DB_NOT_FOUND
+	if vim.loop.fs_stat(db_file) ~= nil then
+		-- redirect error message to null
+		cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol .. " 2> /dev/null"
+		-- cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol
+
+		-- print(cmd)
+		local file = assert(io.popen(cmd, "r"))
+		file:flush()
+		local output = file:read("*all")
+		file:close()
 	end
 
-	-- redirect error message to null
-	cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol .. " 2> /dev/null"
-	-- cmd = cmd .. " -dL" .. " -" .. op_n .. " " .. symbol
-
-	-- print(cmd)
-	local file = assert(io.popen(cmd, "r"))
-	file:flush()
-	local output = file:read("*all")
-	file:close()
+	-- find each symbol on added db
+	for k,each_db in pairs(M.data_db) do
+		if vim.loop.fs_stat(each_db) == nil then
+			log.warn("db file not found [" .. each_db .. "].", hide_log)
+		else
+			local tmp_cmd = M.opts.exec .. " -f " .. each_db .. " -dL" .. " -" .. op_n .. " " .. symbol .. " 2> /dev/null"
+			file = assert(io.popen(tmp_cmd, "r"))
+			file:flush()
+			output = output .. file:read("*all")
+			file:close()
+		end
+	end
 
 	if output == "" then
 		log.warn("no results for 'cscope find " .. op_s .. " " .. symbol .. "'", hide_log)
@@ -325,6 +359,8 @@ local cscope = function(args)
 		cscope_help()
 	elseif cmd:sub(1, 1) == "s" then
 		cscope_show()
+	elseif cmd:sub(1, 1) == "r" then
+		cscope_reset()
 	elseif cmd:sub(1, 1) == "a" then
 		if args_num < 2 then
 			log.warn("add command expects atleast 2 arguments")
@@ -338,7 +374,7 @@ local cscope = function(args)
 end
 
 local cscope_cmd_comp = function(_, line)
-	local cmds = { "find", "build", "help", "add", "show"}
+	local cmds = { "find", "build", "help", "add", "show", "reset"}
 	local l = vim.split(line, "%s+")
 	local n = #l - 2
 
