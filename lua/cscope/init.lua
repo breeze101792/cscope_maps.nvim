@@ -96,6 +96,8 @@ local cscope_push_tagstack = function()
 	local ts = vim.fn.gettagstack()
 	local ts_last_item = ts.items[ts.length]
 
+    --[[
+	-- FIXME, I don't know what that is, but it seem to a bug on my platform
 	if
 		ts_last_item
 		and ts_last_item.tagname == items[1].tagname
@@ -105,6 +107,7 @@ local cscope_push_tagstack = function()
 		-- Don't push duplicates on tagstack
 		return
 	end
+    --]]
 
 	vim.fn.settagstack(vim.fn.win_getid(), { items = items }, "t")
 end
