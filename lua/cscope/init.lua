@@ -43,6 +43,10 @@ M.data_db = {}
 local cscope_picker = nil
 local project_root = nil
 
+local cscope_connection = function()
+	return table.getn(M.data_db)
+end
+
 local cscope_help = function()
 	print([[
 Cscope commands:
@@ -66,7 +70,7 @@ end
 
 local cscope_add = function(db_file)
 	if vim.loop.fs_stat(db_file) == nil then
-		log.warn("db file not found [" .. db_file .. "]. Create using :Cs build", hide_log)
+		log.warn("db file not found [" .. db_file .. "]. Create using :Cs build", hidecscope)
 		return
 	end
 
@@ -433,6 +437,10 @@ local cscope_project_root = function()
 	end
 end
 
+local cscope_vim_patch = function()
+	vim.g.Cscope_connection = cscope_connection
+end
+
 M.setup = function(opts)
 	M.opts = vim.tbl_deep_extend("force", M.opts, opts)
 	-- This variable can be used by other plugins to change db_file
@@ -454,6 +462,7 @@ M.setup = function(opts)
 	cscope_picker = require("cscope.pickers." .. M.opts.picker)
 
 	cscope_user_command()
+	cscope_vim_patch()
 end
 
 return M

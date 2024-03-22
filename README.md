@@ -1,3 +1,11 @@
+# About
+
+This fork is aim to add back the multiple db back to nvim.
+Add command: 
+Cscope add
+Cscope reset
+
+
 # cscope_maps.nvim
 
 For old school code navigation :)
